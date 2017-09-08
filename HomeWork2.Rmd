@@ -1,0 +1,52 @@
+---
+title: "Homework Week 2"
+author: "Eric Pitruzzella epitruzz@gmail.com"
+date: "September 8, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+Choose six recent popular movies.  Ask at least five people that you know (friends, family, classmates, imaginary friends) to rate each of these movie that they have seen on a scale of 1 to 5.  Take the results (observations) and store them in a SQL database.  Load the information into an R dataframe.
+
+##Solution
+Set up Connetion to MySQL 
+
+```{r}
+p=getPass::getPass()
+
+library(RMySQL)
+
+mydb = dbConnect(MySQL(), user='epitruzz', password=p, dbname='movie_ratedb', host='localhost')
+
+```
+Created 3 tables in MYSQL earlier, here they are
+```{r}
+dbListTables(mydb)
+
+```
+Read all data from MySQL of all crtics and their rating
+```{r}
+myfilms <- dbSendQuery(mydb, "SELECT Replace(a.name,'\r','') as 'Critic', 
+Replace(f.name,'\r','') as 'Movie', 
+r.rating 
+from filmRating r, films f, raters a
+where r.id=f.id and r.nid=a.nid order by a.name;")
+dbFetch(myfilms)
+```
+Show each movie's average rating
+```{r}
+myfilms <- dbSendQuery(mydb, "SELECT Replace(f.name,'\r','')as 'Movie',avg(r.rating) as 'Avg Rating' from filmRating r, films f, raters a
+where r.id=f.id and r.nid=a.nid group by f.name order by avg(r.rating) desc ;")
+dbFetch(myfilms)
+```
+Close Connections
+```{r}
+ dbDisconnect(mydb)
+```
+
+
+
+
+
