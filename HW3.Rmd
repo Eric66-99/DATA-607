@@ -1,0 +1,116 @@
+---
+title: "Data 607 hw3"
+author: "Eric Pitruzzella"
+date: "September 15, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+3. Copy the introductory example. The vector name stores the extracted names.
+R> name
+[1] "Moe Szyslak" "Burns, C. Montgomery" "Rev. Timothy Lovejoy"
+[4] "Ned Flanders" "Simpson, Homer" "Dr. Julius Hibbert"
+
+```{r}
+#rm(list=ls())  #clear everything
+library(stringr)
+raw.data <- "555-1239Moe Szyslak(636) 555-0113Burns, C. Montgomery555-6542Rev. Timothy Lovejoy555 8904Ned Flanders636-555-3226Simpson, Homer5553642Dr. Julius Hibbert"
+```
+
+
+(a) Use the tools of this chapter to rearrange the vector so that all elements conform to the standard first_name last_name.
+
+load into name vector
+
+```{r}
+name <- unlist(str_extract_all(raw.data, "[[:alpha:]., ]{2,}"))
+```
+
+Remove titles and initials. Trim whitespaces
+```{r}
+name2 <- str_trim(sub("[[:alpha:]]{1,3}\\.", '', name))
+name2
+```
+
+Replace instances of "Last name comma first name"  with "first name lastname" by Backreferencing.
+
+```{r}
+name3 <- sub("(\\w+),\\s+(\\w+)","\\2 \\1", name2)
+name3
+```
+
+(b) Construct a logical vector indicating whether a character has a title (i.e., Rev. and
+Dr.).
+```{r}
+nameTitle <- str_detect(name,"Rev|Dr[.]")
+nameTitle
+```
+
+(c) Construct a logical vector indicating whether a character has a second name.
+```{r}
+namecount <- str_count(str_trim(sub("Rev|Dr[.]", "", name)),"\\w+")
+secndname <- str_detect(namecount, "3") # anything with more than 3 words has a second name
+secndname
+```
+
+4.Describe the types of strings that conform to the following regular expressions and
+construct an example that is matched by the regular expression.
+
+(a) [0-9]+\\$
+
+a string of numbers followed by a $
+```{r}
+pattern="[0-9]+\\$"
+ex <- "1234$ ab$a 1$ 00012324"
+str_extract_all(ex, pattern)
+
+```
+(b) \\b[a-z]{1,4}\\b
+
+get any word (as separated by the word barriers \\b)all in lowercase letters. Words matched are between 1 and 4 characters long
+```{r}
+ex1 = "How do I know the things"
+str_extract_all(ex1,"\\b[a-z]{1,4}\\b")
+```
+
+(c) .*?\\.txt$
+ any strings that end in .txt 
+ 
+```{r}
+ex2 = "filename.dat something.txt"
+str_extract_all(ex2, ".*?\\.txt$")
+```
+(d) \\d{2}/\\d{2}/\\d{4}
+
+Any values that have 2 numbers slash 2 numbers slash 4 numbers. For example a date. 
+```{r}
+date1 <- c("12/25/1978 2017/16/12 99/99/1978")
+str_extract_all(date1, "\\d{2}/\\d{2}/\\d{4}")
+```
+(e) <(.+?)>.+?</\\1>
+Any string inside < > followed by any string and followed by the same values inside the previous < > except ending with </ >.
+```{r}
+ex3 = "<html>    <head>        <title>CUNY - Self Service</title>"
+str_extract_all(ex3, "<(.+?)>.+?</\\1>")
+```
+
+9. The following code hides a secret message. Crack it with R and regular expressions.
+Hint: Some of the characters are more revealing than others! The code snippet is also
+available in the materials at www.r-datacollection.com.
+clcopCow1zmstc0d87wnkig7OvdicpNuggvhryn92Gjuwczi8hqrfpRxs5Aj5dwpn0Tanwo
+Uwisdij7Lj8kpf03AT5Idr3coc0bt7yczjatOaootj55t3Nj3ne6c4Sfek.r1w1YwwojigO
+d6vrfUrbz2.2bkAnbhzgv4R9i05zEcrop.wAgnb.SqoU65fPa1otfb7wEm24k6t3sR9zqe5
+fy89n6Nd5t9kc4fE905gmc4Rgxo5nhDk!gr
+
+Extract all the uppercase letters from the message and concatenate into a single vector 
+```{r}
+x="clcopCow1zmstc0d87wnkig7OvdicpNuggvhryn92Gjuwczi8hqrfpRxs5Aj5dwpn0Tanwo
+Uwisdij7Lj8kpf03AT5Idr3coc0bt7yczjatOaootj55t3Nj3ne6c4Sfek.r1w1YwwojigO
+d6vrfUrbz2.2bkAnbhzgv4R9i05zEcrop.wAgnb.SqoU65fPa1otfb7wEm24k6t3sR9zqe5
+fy89n6Nd5t9kc4fE905gmc4Rgxo5nhDk!gr"
+str_c(unlist(str_extract_all(x, "[[:upper:].]")),collapse = "")
+```
+
