@@ -1,0 +1,78 @@
+---
+title: "Project1"
+author: "Eric Pitruzzella"
+date: "September 21, 2017"
+output: html_document
+---
+```{r}
+#Clear the environment 
+rm(list=ls())
+
+#Load libraries
+library(stringr)
+library(knitr)
+```
+
+Load the data into tempory raw data data frame. Use read.delim to parse out the file. 
+```{r}
+rawdat <- read.delim("https://raw.githubusercontent.com/Eric66-99/DATA-607/master/tournamentinfo.txt", header=FALSE, sep="|", skip = 4,  stringsAsFactors = FALSE)
+```
+
+Create a data frame to hold the player data. 
+Player's Name, Player's State, Total Number of Points, Player's Pre-Rating (Average Pre Chess Rating of Opponents will be added later).
+The player data loaded into rawdat is in 3-line chunks. For each column the information needs to be extracted from the correct rows. 
+For example, Name is in the second raw data column and first row. Player state is in the first raw data column and second row. Just need to specify what row is needed by using c(TRUE,FALSE,FALSE)] after the column variable. For example, rawdat$V2[c(TRUE,FALSE,FALSE)].
+```{r}
+tourn <- data.frame(PlName = rawdat$V2[c(TRUE,FALSE,FALSE)], PlState=rawdat$V1[c(F,T,F)], PlPoints=rawdat$V3[c(T,F,F)])
+tourn$PlPreRating <- as.numeric(str_replace_all(str_extract(rawdat$V2[c(F,T,F)], "R:[:blank:]+[:digit:]+"), "R:[:blank:]+",""))
+
+```
+
+Append data frame to hold opponent data after the 4th column (Player's Pre-Rating). 
+Extract the opponent data (column 4 to 10) from the rawdat data frame and append it to the tourn data frame.
+
+```{r}
+for (j in 1:7) {
+    tourn[,j+4] = as.numeric(str_extract(rawdat[,j+3][c(TRUE, FALSE, FALSE)], "[:digit:]+"))
+}
+```
+
+First, loop through all the data in the frame.
+Then loop through the rounds 1-7 and cross reference the opponent id for each round (tourn[i,j+4]) to append opponent rating (tourn$PlPreRating) to the tourn data frame.
+
+```{r}
+for (i in 1:nrow(tourn)) {
+	for (j in 1:7) {
+        tourn[i,j+11] = as.numeric(tourn$PlPreRating[tourn[i,j+4]])
+	}
+}
+
+```
+
+All data needed is appended to the data frame.
+
+```{r}
+tourn
+```
+
+Calculate the average opponent pre-rating for each player. Ratings are in columns 12 - 18.
+
+```{r}
+tourn["OppPreRating"] <-  round(rowMeans(tourn[, 12:18], na.rm = TRUE ), digits = 0)
+tourn
+```
+Remove coloumns not needed in report. 
+```{r}
+tourn[, 5:18]<-NULL
+```
+Preview Report
+```{r}
+tourn
+```
+Create the output file
+```{r}
+write.csv(tourn, file = "tournamentAverages.csv")
+```
+
+
+
