@@ -1,0 +1,105 @@
+---
+title: "Week 5 Assignment"
+author: "Eric Pitruzzella"
+date: "September 30, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+load.packages <- c("stringr","prettydoc", "tidyr", "dplyr", "knitr")
+```
+
+Load Packages
+```{r}
+
+library(tidyr)
+library(dplyr)
+library(stringr)
+```
+
+(1) Create a .CSV file (or optionally, a MySQL database!) that includes all of the information above. You’re encouraged to use a “wide” structure similar to how the information appears above, so that you can practice tidying and transformations as described below.
+
+Add headers for Airline and status and row headers for "delayed".
+
+```{r}
+csv_file <- rbind(c("Airline", "Status", "Los Angeles", "Phoenix", "San Diego", "San Francisco", "Seattle"),
+             c("ALASKA", "On Time", 497, 221, 212, 503, 1841),
+             c("ALASKA", "Delayed", 62, 12, 20, 102, 305),
+             c("AM WEST", "On Time", 694, 4840, 383, 320, 201),
+             c("AM WEST", "Delayed", 117, 415, 65, 129, 61))
+
+
+csv_file
+write.table(csv_file, file = "Airline.csv", sep = ",", col.names=F, row.names=F)
+```
+
+(2) Read the information from your .CSV file into R, and use tidyr and dplyr as needed to tidy and transform your data. 
+
+Read the data from the file
+
+```{r}
+csvdata <- read.csv(paste0("Airline.csv"), stringsAsFactors = F);
+csvdata[,2] <- sapply(csvdata[,2], str_replace, " ", "_")
+csvdata
+```
+
+
+Use the gather function was used to move data from wide to tall format.
+
+```{r}
+csv_file2 <- gather(csvdata, "City", "Count", 3:7)
+csv_file2
+```
+
+Use the spread function to move Status into its own variable
+
+```{r}
+csv_file2 <- spread(csv_file2, Status, Count)
+csv_file2
+```
+
+(3) Perform analysis to compare the arrival delays for the two airlines.
+
+examine delays for these two airlines in general and by city
+
+By Airline:
+```{r}
+csv_file2 %>% group_by(Airline) %>%
+summarise(
+TotDelay=sum(Delayed),TotOn_Time=sum(On_Time), 
+PctDelayed=(TotDelay/(TotDelay+TotOn_Time)*100),
+PctOnTime=(TotOn_Time/(TotDelay+TotOn_Time)*100)
+)
+```
+Alaska has a greater percentage of delays than AM West. 
+
+
+By City:
+```{r}
+csv_file2 %>% group_by(City) %>%
+summarise(
+TotDelay=sum(Delayed),TotOn_Time=sum(On_Time), 
+PctDelayed=(TotDelay/(TotDelay+TotOn_Time)*100),
+PctOnTime=(TotOn_Time/(TotDelay+TotOn_Time)*100)
+)
+```
+San Francisco has the greatest  percentage of delays of the cities listed. Phoenix has the best on time. 
+
+
+By City and Airline:
+```{r}
+csv_file2 %>% group_by(City,Airline) %>%
+summarise(
+TotDelay=sum(Delayed),TotOn_Time=sum(On_Time), 
+PctDelayed=(TotDelay/(TotDelay+TotOn_Time)*100),
+PctOnTime=(TotOn_Time/(TotDelay+TotOn_Time)*100)
+)
+```
+In particular, AM West at San Francisco has a much higher percentage of delays than all airlines and cities. Taking Alaska airlines to Phoenix would have the best chance of getting there on time. 
+
+
+
+---
+
+
