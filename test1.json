@@ -1,23 +1,19 @@
 {"fbooks":[
 	{
 "title": "Zen Mind, Beginner's Mind: Informal Talks on Zen Meditation and Practice",
-"authors": [
-		        "Shunryu Suzuki  (Author), Trudy Dixon  (Editor), Huston Smith (Preface)"
-               ],
+"authors": [ "Shunryu Suzuki  (Author), Trudy Dixon  (Editor), Huston Smith (Preface)"  ],
 "publisher" :"Shambhala",
 "yearpublished": "June 28, 2011",
 "Amazon" :"https://www.amazon.com/Zen-Mind-Beginners-Informal-Meditation/dp/1590308492",
-"Book":""
+"Book":"aaa"
 	},
 	{
 "title": "R for Everyone",
-"authors": [
-		"Jared P. Lande"
-               ],
+"authors": ["Jared P. Lande"  ],
 "publisher" :"Jared P. Lande",
 "yearpublished": 2015,
 "Amazon" :"https://www.amazon.com/Zen-Mind-Beginners-Informal-Meditation/dp/1590308492",
-"Book":""
+"Book":"aaa"
 	},
 	{
 "title": "Data Science for Business",
@@ -28,6 +24,7 @@
 "publisher" :"O'Reilly",
 "yearpublished": 2013,
 "Amazon" :"https://www.amazon.com/Zen-Mind-Beginners-Informal-Meditation/dp/1590308492",
-"Book":""
-	}]
+"Book":"aaa"
+	}
+]
 }
