@@ -1,30 +1,31 @@
-{"fbooks":[
+{"mybooks":[
 	{
 "title": "Zen Mind, Beginner's Mind: Informal Talks on Zen Meditation and Practice",
-"authors": [ "Shunryu Suzuki  (Author), Trudy Dixon  (Editor), Huston Smith (Preface)"  ],
+"authors": [
+		        "Shunryu Suzuki  (Author), Trudy Dixon  (Editor), Huston Smith (Preface)"
+               ],
 "publisher" :"Shambhala",
 "yearpublished": "June 28, 2011",
 "Amazon" :"https://www.amazon.com/Zen-Mind-Beginners-Informal-Meditation/dp/1590308492"
 
 	},
 	{
-"title": "R for Everyone",
-"authors": ["Jared P. Lande"  ],
-"publisher" :"Jared P. Lande",
-"yearpublished": 2015,
-"Amazon" :"https://www.amazon.com/Zen-Mind-Beginners-Informal-Meditation/dp/1590308492"
-
+"title": "Be Here Now" ,
+"authors": [
+		"Ram Dass"
+               ],
+"publisher" :"HarperCollins",
+"yearpublished": "November 2, 2010",
+"Amazon" :"https://www.amazon.com/gp/product/B005R9HK8O"
 	},
 	{
-"title": "Data Science for Business",
+"title": "Mindfulness, 25th anniversary edition",
 "authors": [
-		"Foster Provost",
-                "Tom Fawcett"
-               ],
-"publisher" :"O'Reilly",
-"yearpublished": 2013,
-"Amazon" :"https://www.amazon.com/Zen-Mind-Beginners-Informal-Meditation/dp/1590308492"
+		"Ellen J. Langer "
+                               ],
+"publisher" :"Da Capo Lifelong Books",
+"yearpublished": "October 14, 2014",
+"Amazon" :"https://www.amazon.com/Mindfulness-25th-anniversary-Merloyd-Lawrence/dp/0738217999"
 
-	}
-]
+	}]
 }
