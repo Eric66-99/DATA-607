@@ -1,0 +1,49 @@
+---
+title: "Assignment week 9"
+author: "Eric Pitruzzella"
+date: "October 29, 2017"
+output: html_document
+---
+
+Using the Article Search API from  New York Times APIs.
+
+Constructed an interface in R to read in the JSON data, and transformed it to an R dataframe.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, warning=FALSE}
+
+
+library(httr)
+library(jsonlite)
+library(knitr)
+library(XML)
+library(plyr)
+
+my_url = "https://api.nytimes.com/svc/search/v2/articlesearch.json"
+
+
+
+# From API documentation, we can pass  fields we're interested in
+
+myjson <- GET(my_url,query = list(api_key = "06fa94b122274699adb1f46dedad1be2", order = "by-title", q= "\"data science\"", begin_date = "20160101" , sort = "newest", 
+        offset = 20 , fl="web_url,snippet,headline,pub_date,pub_date, news_desk"))
+
+
+# convert the data into a readable format
+json_data <- fromJSON(paste(myjson, collapse=""))
+
+#put into data fram
+jsonDF <- data.frame(json_data)
+
+# get the columns were interested in 
+jsonDF <- jsonDF[3:7]
+
+jsonDF
+     
+       ```
+
+
