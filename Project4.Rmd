@@ -1,0 +1,252 @@
+---
+title: "Week10 Project 4"
+author: "Eric Pitruzzella"
+date: "November 2, 2017"
+output: html_document
+---
+
+
+For this project, I start with a spam/ham dataset, then predict the class of new documents ( withheld from the training dataset). Then use models from RTextTools predict whether or not a new document is spam.  
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+rm(list=ls())
+library(stringr)
+library(tm)
+library(SnowballC)
+library(RTextTools)
+```
+
+
+Get the training and testing data from the spamassassin site.
+```{r dir, warning=FALSE}
+### Training Data
+
+#used 20021010_easy_ham.tar.bz2 and  20021010_spam.tar.bz2 for training data and 20021010_hard_ham.tar.bz2 and #20030228_spam.tar.bz2 for testing. Data was loaded to desktop rather than directly from site for performance purposes.
+
+
+train_spam_dir <- "C:/Users/eptrs/Desktop/CUNY/Data607_DataAcquisition/week10/files/train_spam/"
+train_spam_files <- list.files(train_spam_dir)
+length(train_spam_files)
+
+train_ham_dir <- "C:/Users/eptrs/Desktop/CUNY/Data607_DataAcquisition/week10/files/train_ham/"
+train_ham_files <- list.files(train_ham_dir)
+length(train_ham_files)
+
+### Testing Data
+
+test_spam_dir <- "C:/Users/eptrs/Desktop/CUNY/Data607_DataAcquisition/week10/files/test_spam/"
+test_spam_files <- list.files(test_spam_dir)
+length(test_spam_files)
+
+test_ham_dir <- "C:/Users/eptrs/Desktop/CUNY/Data607_DataAcquisition/week10/files/test_ham/"
+test_ham_files <- list.files(test_ham_dir)
+length(test_ham_files)
+
+```
+
+Create 4 Corpus for Spam and Ham training and Spam and Ham testing.
+
+Traing Corpus
+```{r create Train corp, warning=FALSE}
+##########corpus
+
+###### Train Spam
+tmp <- readLines(str_c(train_spam_dir, train_spam_files[1]))
+tmp <- str_c(tmp, collapse = "")
+
+stxt_corpus <- Corpus(VectorSource(tmp))
+
+n <- 1
+
+for (i in 1:length(train_spam_files)) {
+  tmp <- readLines(str_c(train_spam_dir, train_spam_files[i]))
+  tmp <- str_c(tmp, collapse = "")
+  
+  n <- n + 1
+  
+  tmp_corpus <- VCorpus(VectorSource(tmp))
+  stxt_corpus <- c(stxt_corpus, tmp_corpus)
+  stxt_corpus <- VCorpus(VectorSource(stxt_corpus))
+
+}
+
+meta(stxt_corpus, "classification") <- 0
+
+
+################ Train Ham
+
+htmp <- readLines(str_c(train_ham_dir, train_ham_files[1]))
+htmp <- str_c(htmp, collapse = "")
+
+htxt_corpus <- Corpus(VectorSource(htmp))
+
+
+n <- 1
+
+for (i in 1:length(train_ham_files)) {
+  htmp <- readLines(str_c(train_ham_dir, train_ham_files[i]))
+  htmp <- str_c(htmp, collapse = "")
+  
+  n <- n + 1
+  htmp_corpus <- VCorpus(VectorSource(htmp))
+  htxt_corpus <- c(htxt_corpus, htmp_corpus)
+  htxt_corpus <- VCorpus(VectorSource(htxt_corpus))
+
+}
+
+meta(htxt_corpus, "classification") <- 1
+
+```
+
+Testing Corpus
+
+```{r create Test corp, warning=FALSE}
+
+
+###### test Spam
+tmp <- readLines(str_c(test_spam_dir, test_spam_files[1]))
+tmp <- str_c(tmp, collapse = "")
+
+testSpam_corpus <- Corpus(VectorSource(tmp))
+
+n <- 1
+
+for (i in 1:length(test_spam_files)) {
+  tmp <- readLines(str_c(test_spam_dir, test_spam_files[i]))
+  tmp <- str_c(tmp, collapse = "")
+
+  n <- n + 1
+  tmp_corpus <- VCorpus(VectorSource(tmp))
+  testSpam_corpus <- c(testSpam_corpus, tmp_corpus)
+  testSpam_corpus <- VCorpus(VectorSource(testSpam_corpus))
+  
+}
+
+meta(testSpam_corpus, "classification") <- 0
+
+
+################ test Ham
+
+htmp <- readLines(str_c(test_ham_dir , test_ham_files[1]))
+htmp <- str_c(tmp, collapse = "")
+
+testHam_corpus<- Corpus(VectorSource(htmp))
+
+
+n <- 1
+
+for (i in 1:length(test_ham_files)) {
+  htmp <- readLines(str_c(test_ham_dir, test_ham_files[i]))
+  htmp <- str_c(htmp, collapse = "")
+  
+  n <- n + 1
+  htmp_corpus <- VCorpus(VectorSource(htmp))
+  testHam_corpus<- c(testHam_corpus, htmp_corpus)
+  testHam_corpus<- VCorpus(VectorSource(testHam_corpus))
+  
+  }
+
+meta(testHam_corpus, "classification") <- 1
+
+```
+
+Combine all the Corpus into one big one
+```{r Combine, warning=FALSE}
+###########Combine
+
+txt_corpus <- c(stxt_corpus, htxt_corpus, testSpam_corpus, testHam_corpus)
+
+```
+
+Perform Data Cleanup
+
+```{r, warning=FALSE}
+######Clean up
+txt_corpus <- tm_map(txt_corpus, removeNumbers)
+txt_corpus <- tm_map(txt_corpus, content_transformer(str_replace_all), pattern = "[[:punct:]]", replacement = " ")
+txt_corpus <- tm_map(txt_corpus, removeWords, words = stopwords("en"))
+txt_corpus <- tm_map(txt_corpus, content_transformer(tolower))
+txt_corpus <- tm_map(txt_corpus, stemDocument)
+```
+
+Build a Document Term Matrix
+
+```{r, warning=FALSE}
+
+dtm <- DocumentTermMatrix(txt_corpus)
+dtm <- removeSparseTerms(dtm, 1-(10/length(txt_corpus)))  #make the matrix less sparse
+dtm
+
+```
+
+Create a container  with all relevant information for use in the estimation procedures. 
+Specify that the first 75% documents are training data and the rest to be classified. 
+Set the virgin attribute to FALSE, meaning that we have labels for all  documents.
+
+```{r, warning=FALSE}
+classification_labels <- unlist(meta(txt_corpus, "classification"))
+N <- length(classification_labels)
+
+N1 <- round(N * .75, 0)
+
+N2 <- N1 + 1
+
+container <- create_container(dtm,
+                              labels = classification_labels,
+                              trainSize = 1:N1,
+                              testSize = N2:N,
+                              virgin = FALSE)
+
+slotNames(container)
+
+#a set of objects that are used for the estimation procedures of the supervised learning methods
+```
+
+supply the information that have stored in the container to the models for training
+
+```{r, warning=FALSE}
+svm_model <- train_model(container, "SVM")
+tree_model <- train_model(container, "TREE")
+maxent_model <- train_model(container, "MAXENT")
+
+```
+
+Use the model parameters to estimate the membership of the remaining documents (testing phase)
+
+```{r, warning=FALSE}
+svm_out <- classify_model(container, svm_model)
+tree_out <- classify_model(container, tree_model)
+maxent_out <- classify_model(container, maxent_model)
+
+```
+
+Evaluation of Performance: Percentage of documents that have been classified correctly
+```{r, warning=FALSE}
+#construct a data frame containing the correct and the predicted labels 
+labels_out <- data.frame(
+  correct_label = classification_labels[N2:N], #start from classify mode
+  svm = as.character(svm_out[,1]),
+  tree = as.character(tree_out[,1]),
+  maxent = as.character(maxent_out[,1]),
+  stringAsFactors = F)
+
+#compare the tested lable with the actual lable 
+perf <- data.frame(
+  svm = prop.table(table(labels_out[,1] == labels_out[,2])),
+  tree = prop.table(table(labels_out[,1] == labels_out[,3])),
+  maxent = prop.table(table(labels_out[,1] == labels_out[,4]))
+)
+
+colnames(perf)<- c("","SVM","","Tree","","Maxent")
+rownames(perf) <- c("Pct. Incorrect","Pct.Correct")
+library(knitr)
+kable(perf[,c(2,4,6)])
+```
+
+The SVM model has predicted a correct spam/ham email  `r sprintf("%.1f %%", 100*perf[2,2])` of the time. 
+
+The Tree model has predicted a correct spam/ham email  `r sprintf("%.1f %%", 100*perf[2,4])` of the time. 
+
+The Maxent model has predicted a correct spam/ham email  `r sprintf("%.1f %%", 100*perf[2,6])` of the time. 
