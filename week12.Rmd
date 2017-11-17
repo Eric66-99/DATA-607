@@ -1,0 +1,200 @@
+---
+title: "Week12: Data Migration from relational database to NoSQL database"
+author: "Eric Pitruzzella"
+date: "November 14, 2017"
+output: html_document
+---
+
+
+
+## Introduction
+
+I have already created a MySQL database with with the flights data from a previous assignment. Now I will migrate my `flights` data base  to a `Neo4j` database. 
+
+## Seting up `Neo4j` Server
+
+Setting up the `Neo4j` Server was pretty straigtforward. I created a database named 'Database' under 'My Project.' 
+
+![](https://raw.githubusercontent.com/Eric66-99/DATA-607/master/database.png)
+
+
+**Read data from flights db**
+
+```{r, message=FALSE, warning=FALSE}
+library(RMySQL)
+if (!require(getPass)) install.packages('getPass',repos = "http://cran.us.r-project.org")
+if (!require(RNeo4j)) install.packages('RNeo4j',repos = "http://cran.us.r-project.org")
+
+my_db = dbConnect(MySQL(), user=getPass(msg = 'Enter username'), password= getPass('Enter Password'), dbname='flights')
+
+```
+
+MySQL DB Connection
+
+Connect to the flights db and store the tables in R as data frames.
+
+```{r, warning=FALSE}
+# create data frames
+airlines_df <- dbGetQuery(my_db, "SELECT * FROM airlines;")
+airports_df <- dbGetQuery(my_db,"SELECT * FROM airports;")
+flights_df <- dbGetQuery(my_db,"SELECT * FROM flights where (arr_time is not null) and (arr_delay is not null) LIMIT 2000")  # LIMIT TO 2000 since mysql loses connection, remove nulls since RNeo4j doesn't like nulls
+planes_df <- dbGetQuery(my_db,"SELECT * FROM planes;")
+weather_df <- dbGetQuery(my_db,"SELECT * FROM weather;")
+
+# db disconnect
+dbDisconnect(my_db)
+```
+
+
+# Neo4j from R
+
+Connect to the Neo4j database
+```{r, warning=FALSE}
+library(RNeo4j)
+
+myneo4jUser=getPass(msg = 'Enter username') 
+myneo4jPassword= getPass('Enter Password')
+
+```
+
+start the database
+```{r, warning=FALSE}
+graph = startGraph("http://localhost:7474/db/data")
+#clear(graph)
+```
+
+add the necessary uniqueness constraints with addConstraint
+```{r, warning=FALSE}
+clear(graph, input = FALSE)
+
+addConstraint(graph, "Airlines", "carrier")
+addConstraint(graph, "Airports", "faa"    )
+addConstraint(graph, "Flights",  "flight" )
+addConstraint(graph, "Planes",   "tailnum")
+addConstraint(graph, "Weather",  "origin" )
+
+```
+
+Neo4j has Nodes rather than tables. I  use getOrCreateNode to create the node if it doesn't exist or retrieve it. getOrCreateNode uses the form Neo4j name = source variable. 
+
+```{r, warning=FALSE}
+airlines = getOrCreateNode(graph, "Airlines", 
+          carrier = airlines_df$carrier, 
+          names = airlines_df$name )
+airports = getOrCreateNode(graph, "Airports", 
+          faa = airports_df$faa,
+          name = airports_df$name,
+          lat = airports_df$lat, 
+          lon = airports_df$lon, 
+          alt = airports_df$alt, 
+          tz = airports_df$tz, 
+          dst = airports_df$dst, 
+          tzone = airports_df$tzone)
+
+flights = getOrCreateNode(graph, "Flights", 
+          flight = flights_df$flight,                 
+          year = flights_df$year, 
+          month = flights_df$month, 
+          day = flights_df$day,
+          dep_time = flights_df$dep_time, 
+          dep_delay = flights_df$dep_delay,
+          arr_time = flights_df$arr_time,
+          arr_delay = flights_df$arr_delay,               
+          carrier = flights_df$carrier, 
+          tailnum = flights_df$tailnum, 
+          origin = flights_df$origin,           
+          dest = flights_df$dest,
+          air_time = flights_df$air_time,           
+          distance = flights_df$distance, 
+          hour = flights_df$hour, 
+          minute = flights_df$minute)
+
+```
+
+
+
+```{r, warning=FALSE}
+
+planes = getOrCreateNode(graph, "Planes", 
+          tailnum = planes_df$tailnum, 
+          year = planes_df$year, 
+          type = planes_df$type, 
+          manufacturer = planes_df$manufacturer,
+          model = planes_df$model, 
+          engines = planes_df$engines, 
+          seats = planes_df$seats, 
+          speed = planes_df$speed, 
+          engine = planes_df$engine)
+
+
+weather = getOrCreateNode(graph, "Weather", 
+          origin = weather_df$origin, 
+          year = weather_df$year, 
+          month = weather_df$month, 
+          day = weather_df$day,
+          hour = weather_df$hour, 
+          temp = weather_df$temp, 
+          dewp = weather_df$dewp, 
+          humid = weather_df$humid, 
+          wind_dir = weather_df$wind_dir,
+          wind_speed = weather_df$wind_speed, 
+          wind_gust = weather_df$wind_gust, 
+          precip = weather_df$precip, 
+          pressure = weather_df$pressure,
+          visib = weather_df$visib)
+
+```
+
+`createRel` creates a relationship between two nodes
+
+```{r, warning=FALSE}
+  createRel(airports, "Airlines", airlines)
+  createRel(airlines, "Flights", flights)
+  createRel(flights, "is_carrier", airlines)
+```
+
+## Summary Graph()
+
+```{r, warning=FALSE}
+  summary(graph)
+```
+
+
+##Sample queries 
+
+```{r, warning=FALSE}
+query = ' MATCH (p:Airlines) RETURN p'
+cypherToList(graph, query)
+  
+query = 'MATCH (n1)-[r]->(n2) RETURN r, n1, n2 LIMIT 2'
+NeoData <-  cypherToList(graph, query)
+  
+```
+
+Output from Neo4j
+
+![](C:/Users/eptrs/Desktop/CUNY/Data607_DataAcquisition/week12/graph.png)
+
+
+# Observations
+
+There is a bit of a learning curve involved with Cypher. I think I'm following the logic explained in the user manual but sometime I don't retrieve data. 
+
+#Relational database vs. NoSQL database.
+
+Relational databases are for storing consitent tabular data. They have a few data types (basically numeric, date and string). They have inbuilt and foolproof method of ensuring and enforcing logic at the database level. For example a business transaction must have certain data values and format in order for it to be loaded. 
+Relationships are determined logically or on the fly in a query. It's good for doing calculations and for storing time series. 
+
+In Neo4j, relationships are set up first. The database is structured entirely around data relationships. The relationship is not part of a schema but is part of the data. So if data is complicated with many relations bewteen entities or values the Neo4j db is better. However, since it is more flexible, business logic is not enforced. 
+
+
+
+
+# References
+
+https://neo4j.com/developer/guide-sql-to-cypher/
+
+https://neo4j.com/developer/r/
+
+
+
