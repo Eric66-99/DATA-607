@@ -1,0 +1,69 @@
+---
+title: "Final Project Proposal"
+author: "Eric Pitruzzella"
+date: "November 17, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+##Introduction
+
+###Is there a relationship between a stock's price and news on that company? 
+
+The inspiration for this project began with Britain's Brexit vote where worldwide markets sank on the news. There has been much research on predicting a stock price based on news. However, for this project I will follow the example presented in Data Science for Business, "Example: Mining News Stories to Predict Stock Price Movement." The title is a bit misleading but still valid. The purpose is  news recommendation (answering "which stories lead to substantial stock price changes?"). This makes the process more reasonable as it reduces the need for complex time series models. 
+
+I will restrict the data set to a few companies that periodically issue press releases or engage in actions that are usually newsworthy. The price history will be from January 2015 to October 2017.
+
+The companies are: 
+
+Pfizer
+
+Exxon Mobile
+
+Merck & Co.
+
+The Boeing Company
+
+
+
+##Proposed Sources
+
+For news history:
+
+https://intrinio.com/  
+
+Daily News history is available from 2015
+
+https://api.nytimes.com
+
+For Price History:
+
+https://finance.yahoo.com/
+
+
+
+
+
+##Proposed Methodology
+
+I will try to answer the question "which stories lead to significant price changes?" I will define a "substantial change" as two standard deviations from the average price calculated from the previous year. Then I will define the situation as a two-class problem, "change" and "no change."
+
+Then I will subject news items for each company to supervised learing techniques based on the bag-of-words paradigm.  Each news item will be trained on that company's price change of that day. I will filter out the price data to include only days that have a news story. 
+
+I will then match the news story time and date to it's current days or next day trading hours. So if a news item is released after the market closes it will use the next day's price change rather than the current day's. 
+
+Summary of steps:
+Retrieve a number of stories from news sites for each company using the API.
+Create a training subset of news data, splitting the data 75% training 25% testing.
+Use R's tm package to create corpora and other required cleaning and preprocessing
+Create a term matrix
+Attempt various combinations of classification algorithms using RTextTools
+
+If a bag of words approach doesn't provide any insight, I will consider the following:
+
+- using sentiment analysis (positive vs neutral, negative vs neutral) as new categories
+
+- using intra-day data (however this data is not publically available).
