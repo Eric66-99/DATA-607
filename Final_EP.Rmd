@@ -1,0 +1,539 @@
+---
+title: "Final Project"
+author: "Eric Pitruzzella"
+date: "December 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+	echo = TRUE,
+	message = FALSE,
+	warning = FALSE
+)
+```
+##Is there a relationship between a stock's price and news on that company? 
+
+The inspiration for this project began with Britain's Brexit vote where worldwide markets sank on the news. There has been much research on predicting a stock price based on news. However, for this project I will follow the example presented in Data Science for Business, "Example: Mining News Stories to Predict Stock Price Movement." The title is a bit misleading but still valid. The purpose is  news recommendation (answering "which stories lead to substantial stock price changes?"). This makes the process more reasonable as it reduces the need for complex time series models. 
+
+I will restrict the data set to a few companies that periodically issue press releases or engage in actions that are usually newsworthy. The price history will be from January 2015 to October 2017.
+
+The companies are: 
+
+Pfizer
+
+Exxon Mobile
+
+Merck & Co.
+
+The Boeing Company
+
+
+##Proposed Sources
+
+For news history:
+
+https://intrinio.com/  
+
+
+For Price History:
+
+https://finance.yahoo.com/
+
+
+
+##Proposed Methodology
+
+I will try to answer the question "which stories lead to significant price changes?" I will define a "substantial change" as a two percent change from the previous day. Then I will define the situation as a two-class problem, "change" and "no change."
+
+Then I will subject news items for each company to supervised learing techniques based on the bag-of-words paradigm.  Each news item will be trained on that company's price change of that day. I will filter out the price data to include only days that have a news story. 
+
+I will then match the news story time and date to it's current days or next day trading hours. So if a news item is released after the market closes it will use the next day's price change rather than the current day's. 
+
+Summary of steps:
+Retrieve a number of stories from news sites for each company using the API.
+Create a training subset of news data, splitting the data 75% training 25% testing.
+Use R's tm package to create corpora and other required cleaning and preprocessing
+Create a term matrix
+Attempt various combinations of classification algorithms using RTextTools
+
+
+I've tried to make the process as modular as possible by creating diferent function for each major step. I did this because the process is the same for each stock. But more importantly, if the news feed I retrieved contained corrupted data I could just rerun the API call or manually fix the news data. News data unfortunately tends to be messy and needs a human to look at it - at least at the beginning in order to make unforseen tweeks to the process.  
+
+
+
+```{r, message=FALSE, warning=FALSE}
+rm(list=ls())
+library(httr)
+library(jsonlite)
+library(knitr)
+
+```
+
+#Obtainin the Data
+
+##Retrieve New stories from Intrinio Data Marketplace using API
+
+Intrinio Data Marketplace provides an API to access financial news data. They are a fintech startup that aggregates data and provides it to individual users and enterprises for a small fee. I am using the free service where the daily API call limit is 500. The financial news history goes back 2 years. Very few providers have deeper histories and their services are very expensive. 
+
+For this project I will use Intrinio's API to access their US company news data. Their documentation is available at http://docs.intrinio.com. The API works over http and requires an API key. The basic process is as follows:
+
+1. Construct a url as "https://api.intrinio.com/news?ticker=ticker&page_number=number" where ticker is the stock ticker of insterest and number is the page number requested. 
+
+2. Intrinio responds with 100 news stories per page requested. The response also includes the total number of pages available for that stock. 
+
+3. Send a request to Intrinio for each page until the last page is reached. 
+
+I've included the code that retrieves news stories for a stock requested. Since there is daily limit of 500 requests, I only use it to retrieve the news history for a stock and output it to a file on a local machine. The data manipulation is done from the file created so I can test many times without hitting the limit. 
+
+I created this funtion to retrieve news data. I commented it out because I already posted the news data files on GitHub. It's not needed for my test here but I included it to show my process. 
+
+```{r, warning=FALSE}
+
+
+##### get_intrinio function: used to get news history
+
+get_intrinio <- function(ticker, key1) {
+  filelocation <- 'C:\\data'
+  my_url = paste("https://api.intrinio.com/news?ticker=", ticker, sep="")
+  my_url = paste(my_url,"&page_number=", sep="")
+  x = base64_enc(key1)
+  myjson <- GET(my_url,add_headers(Authorization=paste("Basic ", x, sep=":")))
+  json_data <- fromJSON(paste(myjson, collapse=""))
+  pages <- json_data$total_pages
+  
+  #### set the page number to 2 for testing, comment out if you need to retrieve the enitire history
+  pages <- 2
+  
+  res <- lapply(1:pages, function(month) {
+    my_url = paste(my_url, month, sep="")
+    myjson <- GET(my_url,add_headers(Authorization=paste("Basic ", x, sep=":")))
+    json_data <- fromJSON(paste(myjson, collapse=""))
+    jsonDF <- data.frame(json_data)
+  })
+  
+  jsonDF2 <- data.frame(do.call(rbind, res)) 
+  
+  outfile <- paste(ticker,"_DF.csv",sep="")
+  outfile <- paste("\\",outfile,sep="")
+  
+  jsonDF2 <- data.frame(lapply(jsonDF2, function(x) { gsub("\"", "", x)  }))
+
+  jsonDF2 <- data.frame(lapply(jsonDF2, function(x) { gsub("[\t\n]"," ", x) }))
+  
+  write.table(jsonDF2, paste(filelocation, outfile, sep=""), sep="\t", row.names = F)
+  
+ return(jsonDF2) 
+  
+}
+
+
+key1 <- "a064e002cf7fb89a613dd37b74010467:3d9cfbf0b540dd7bf5a8c957e653b137"
+
+#####################################################################################
+####
+###  only run when necessary since there are a limited  number of API requests allowed
+####
+#####################################################################################
+
+ticker <- "PFE"
+  
+#get_intrinio(ticker,key1)
+
+#ticker <- "XOM"
+#get_intrinio(ticker,key1)
+
+#ticker <- "MRK"
+#get_intrinio(ticker,key1)
+
+#ticker <- "BA"
+#get_intrinio(ticker,key1)
+
+
+```
+
+#Scrubbing 
+
+
+##Read News and Cleanup
+
+The next major step is to read in the news file and perform the needed cleanup and data manipulations. I put the news files from the API calls onto GitHub for easier access. 
+
+The next process is:
+
+1. Download and read the file from GitHub into a dataframe
+
+2. Remove lines that didn't load completely. Since I'm dealing with freeform text, there are some lines that have an extra newline or tab which messes with the loading of the data. 
+
+3. After data is loaded into the dataframe, move the publication to the next business day if it was published after 4PM (after market close). 
+
+
+```{r, warning=FALSE}
+###################### Read the files containing news data and clean the data
+
+read_news <- function(ticker) {
+
+filename <- paste(ticker, "_DF.tab", sep="")
+file_url = paste("https://raw.githubusercontent.com/Eric66-99/DataFiles/master/", filename, sep="")
+
+jsonDF2 <- read.table(file_url, fill=TRUE, header=TRUE, quote="", sep="\t", encoding="UTF-8")
+
+## remove blank or unreadable lines
+jsonDF2 <- jsonDF2[!(jsonDF2$SUMMARY == "" | is.na(jsonDF2$SUMMARY)), ]
+  
+#### Set Publication date to next business day if news item was published after 4PM
+jsonDF2$Date<-NA
+
+library(bizdays)
+remove.calendars("Brazil/ANBIMA")
+
+#convert column to date format
+jsonDF2$Date <- as.Date(jsonDF2$Date, format = "%Y-%m-%d");
+
+for(i in 1:nrow(jsonDF2)) 
+{
+  if(substr(jsonDF2$PUBLICATION_DATE[i], 12, 13)>=16){
+    jsonDF2$Date[i]<-offset(substr(jsonDF2$PUBLICATION_DATE, 1, 10)[i], 1,"weekends")
+  }else {
+    jsonDF2$Date[i]<-substr(jsonDF2$PUBLICATION_DATE, 1, 10)[i]
+     }
+}
+
+return(jsonDF2)
+}
+
+ticker <- "PFE"
+
+newsdat <- read_news(ticker)
+
+head(newsdat,1)
+
+```
+
+## Retrieve Price Data from Yahoo Finance (obtaining and scrubbing for prices)
+
+I downloaded stock price data from Yahoo Finance. Yahoo recentenly disabled the API so I had to download the data manually. The price files have been loaded into GitHub. 
+
+The logic for manipulating the price data:
+
+1. Download and load price history into a dataframe.
+
+2. Calculate the daily percentage change in price and create a new column for that value
+
+3. Go through the price history and flag days where there was a greater than 2% change in price. 
+
+4. Put the change flag into a new column. This will be used for the machine learning section.
+
+
+```{r, warning=FALSE}
+get_prices <- function(ticker) {
+  
+  filename <- paste(ticker, ".csv", sep="")
+  file_url = paste("https://raw.githubusercontent.com/Eric66-99/DataFiles/master/", filename, sep="")
+  
+#tmp <- paste(filelocation, "PFE.csv", sep="")
+dat_tmp <- read.csv(file_url, header=TRUE)
+dat_tmp$Date <- as.Date(dat_tmp$Date, format = "%Y-%m-%d");
+
+
+#Daily price changes
+dat_tmp$prc_ch<-NA
+for (i in 2:nrow(dat_tmp)) { dat_tmp$prc_ch[i] = (dat_tmp$Close[i]/dat_tmp$Close[i-1])-1}
+dat_tmp <- dat_tmp[!(dat_tmp$prc_ch == "" | is.na(dat_tmp$prc_ch)), ]
+
+
+#Determine large price changes
+dat_tmp$change<-NA
+
+#set to 2% price change
+a <- .02
+
+
+for (i in 1:nrow(dat_tmp)){
+  if(abs(dat_tmp$prc_ch[i]) > a ){
+    dat_tmp$change[i] <- "Y"
+  } else {
+    dat_tmp$change[i] <- "N"
+  }
+}
+
+return(dat_tmp)
+}
+
+ticker <- "PFE"
+
+pricedat <- get_prices(ticker)
+
+head(pricedat,1)
+
+```
+
+#Exploring Data 
+with PFE as an example
+
+## Some observations and statistics on the price data for PFE
+
+The daily price return for Pfizer seems normal with a mean return or around zero. There are a few major fluctuations (more than 2%) in the past few years. 
+
+Since I was dealing with stock prices, I decided to look into R's time series package: xts. It seems to contain a robust set of functions. I used it primarily for the graphs in this project. In the future I see it as useful tool for further time series analysis. 
+
+```{r, warning=FALSE}
+library(dplyr)
+
+pricedat1 <- pricedat%>% 
+  select(Date,prc_ch)
+
+
+pricedat2 <- pricedat%>% 
+  select(Date,prc_ch,change)
+
+library(xts)
+
+pricedat1$Date <- as.Date(pricedat1$Date, format = "%Y-%m-%d");
+dat_prc <- read.zoo(pricedat1, index.column=1, sep=",", format="%Y-%m-%d")
+
+dat_xts <- as.xts(dat_prc)
+
+result1 <- plot(dat_xts)
+
+result1
+
+library(psych)
+
+kable(describeBy(pricedat1$prc_ch))
+
+```
+
+
+Normal Probability Plot of daily price return and Change flag:
+
+Residuals show some minor irregularity but seem normal
+
+
+```{r}
+  fit <- lm(pricedat2$prc_ch ~ pricedat2$change)
+  e <- fit$res
+  qqnorm(e, ylab = "Residuals",  main = "", pch = 19)
+```
+
+
+##Merging prices with news 
+
+This next step invloves joining the news data with the price data. Both data sets are joined by date and cleaned up again to remove blank prices and columns that are no longer needed. 
+
+```{r, warning=FALSE}
+
+## Join the two tables
+newsprc <- merge(x = newsdat, y = pricedat, by = "Date", all.x = TRUE)
+
+## Remove null values
+newsprc <- newsprc[!(newsprc$change == "" | is.na(newsprc$change)), ]
+
+## Remove columns no longer needed
+library(dplyr)
+
+newsprc <- newsprc%>% 
+    select(TITLE,SUMMARY,URL,change)
+
+#Clean up the data for export  
+#Data from the API contains characters that interfere with the loading of files
+#for example newlines, quotes, tabs.
+
+newsprc <- data.frame(lapply(newsprc, function(x) { gsub("\"", "", x)  }))
+
+newsprc <- data.frame(lapply(newsprc, function(x) { gsub("[\t\n]"," ", x) }))
+
+ticker <- "PFE"
+
+filelocation <- 'C:\\data'
+filename <- paste(filelocation, "\\",ticker,"_newsprc.tab", sep="")
+write.table(newsprc, filename, sep="\t", row.names = F)
+
+head(newsprc,1)
+```
+#Model the Data
+
+
+##Creating the corpus and perform machine learning exercise
+
+At this point I created a dataframe 'newsprc' that contains the news history with a flag indicating if there was a significant price change (I originally looked at calculating the standard deviation of last year's daily stock price return. However, I noticed that there wasn't much of a difference between that and a static value like 2 or 3 percent. So 2% was determined to be a significant change). 
+
+
+Next, I take the news/price data and see if the machine learning aglorithms are able to determine a predictible relationship between price and news.
+
+Using RTextTools and tm proved to be challenging again. Primarily there is a lack of consistent material on how to create and define a corpus. I needed to load a corpus from a dataframe where each row is considered a document. Next I needed to create a classification tag for the machine learning algorithms to use. 
+
+The process was as follows:
+
+1. Create corpus from news and price file containing a flag indicating whether there was a large price change fo that news item. 
+
+2. The price change flag was used to set a "classification" tag for each document in the corpus. I made sure I did not load that flag into document content by removing it from the dataframe before loading the corpus. 
+
+3. I performed some basic clean up on the corpus (stopwords, punctuation, number, etc.)
+
+4. Then I created a document term matrix and cleaned up the sparse terms. Since, news data has so much technical and industry specific jargen I chose to keep a high term sparcity. 
+
+5. Next, I separated the training and testing data at a 75/25 ratio. 
+
+6. Finally, I trained and tested the following maching learning models:
+BAGGING
+TREE
+MAXENT
+
+I had no preference on models to use, since this is more of a proof of concept exercise. 
+
+
+The results seemed promising or maybe a bit too much. 
+
+
+```{r, warning=FALSE}
+library(stringr)
+library(tm)
+library(SnowballC)
+library(RTextTools)
+
+run_machlearn<- function(ticker) {
+  
+filename <- paste(ticker, "_newsprc.tab", sep="")
+file_url = paste("https://raw.githubusercontent.com/Eric66-99/DataFiles/master/", filename, sep="")
+
+#read news and price file
+newsprc <- read.table(file_url, header = TRUE, sep="\t")
+
+x_tmp <- newsprc
+
+x_tmp <- data.frame(lapply(x_tmp, as.character), stringsAsFactors=FALSE)
+
+x_tmp <- x_tmp[ , !(names(x_tmp) %in% "change")]
+
+corp <- Corpus(DataframeSource(x_tmp))
+
+for (i in 1:nrow(newsprc)) {
+  meta(corp[[i]], "classification") <- newsprc$change[i]
+}
+
+#head(sapply(corp, `[`, "content"))
+
+#meta(corp)
+
+#meta(corp[[1]])
+
+txt_corpus <- corp
+
+######Clean up
+txt_corpus <- tm_map(txt_corpus, removeNumbers)
+txt_corpus <- tm_map(txt_corpus, content_transformer(str_replace_all), pattern = "[[:punct:]]", replacement = " ")
+txt_corpus <- tm_map(txt_corpus, removeWords, words = stopwords("en"))
+txt_corpus <- tm_map(txt_corpus, content_transformer(tolower))
+txt_corpus <- tm_map(txt_corpus, stemDocument)
+
+#Build a Document Term Matrix
+
+dtm <- DocumentTermMatrix(txt_corpus)
+dtm <- removeSparseTerms(dtm, .99)  #make the matrix less sparse
+#dtm
+
+####################  
+classification_labels <- unlist(meta(txt_corpus, "classification"))
+classif<- data.frame(classification_labels)
+
+N <- length(classification_labels)
+
+N1 <- round(N * .75, 0)
+
+N2 <- N1 + 1
+
+container <- create_container(dtm,
+                              labels = classification_labels,
+                              trainSize = 1:N1,
+                              testSize = N2:N,
+                              virgin = FALSE)
+
+#slotNames(container)
+
+#a set of objects that are used for the estimation procedures of the supervised learning methods
+
+#supply the information that have stored in the container to the models for training
+bagging_model <- train_model(container, "BAGGING")
+tree_model <- train_model(container, "TREE")
+maxent_model <- train_model(container, "MAXENT")
+
+#Use the model parameters to estimate the membership of the remaining documents (testing phase)
+bagging_out <- classify_model(container, bagging_model)
+tree_out <- classify_model(container, tree_model)
+maxent_out <- classify_model(container, maxent_model)
+
+#Evaluation of Performance: Percentage of documents that have been classified correctly
+
+#construct a data frame containing the correct and the predicted labels 
+labels_out <- data.frame(
+  correct_label = classification_labels[N2:N], #start from classify mode
+  bagging = as.character(bagging_out[,1]),
+  tree = as.character(tree_out[,1]),
+  maxent = as.character(maxent_out[,1]),
+  stringAsFactors = F)
+
+labels_out[,2] <- factor(labels_out[,2], levels=levels(labels_out[,1]))
+labels_out[,3] <- factor(labels_out[,3], levels=levels(labels_out[,1]))
+labels_out[,4] <- factor(labels_out[,4], levels=levels(labels_out[,1]))
+
+#compare the tested label with the actual label 
+perf <- data.frame(
+  bagging = prop.table(table(labels_out[,1] == labels_out[,2])),
+  tree = prop.table(table(labels_out[,1] == labels_out[,3])),
+  maxent = prop.table(table(labels_out[,1] == labels_out[,4])),
+  stringAsFactors = F
+)
+
+
+
+colnames(perf)<- c("","Bagging","","Tree","","Maxent","")
+rownames(perf) <- c("Pct. Incorrect","Pct.Correct")
+library(knitr)
+kable(perf[,c(2,4,6)],caption = ticker)
+
+}
+
+##################################
+
+```
+
+Looking at the results, there appears to me a strong relationship between a news item and stock price. So much so that machine learning algorithms are able to predict a significant price move from a news item with about 90% accuracy.
+
+
+
+#Interpretation and Conclusion
+
+I supected that there is a relationship between news and stock prices. However, there are also a few issues that need to be addressed before any I can confidently confirm it. 
+
+1. News reports were able to have some influence on the closing price for about less than a day. However, there is little predictive value since the return was based on the previous day's close. For example, if a stock's price closed yesterday at 100 and today there was a major news story and the stock closed at 105 later today there would appear to be a $5 return on the stock. But there is no way to go back and buy that stock at that $100 price. A better test would be to use intra-day stock price data. When a news item is published with a time stamp use the stock price at that time and calculate the return at the end of the day. 
+
+2. Data quality/ data integrity. This exercise was based on the assumption that the news stories had the correct time stamp and that the time stamp indicated was the actual availablity of that news item to the end user. For example, if the time stamp for a major news item was 1:13 PM, does that mean that news item was available at that time for me to look at and/or load into my model? Do I need to account for some latency between the publish time and the actual availabilty time? Does it get disseminated to me at 1:13 or 1:20 or 2:00 PM? 
+
+3. What is the final goal? I refered to the example in Data Science for Business, "Example: Mining News Stories to Predict Stock Price Movement." Do we need to prove that all/most/ or a significant number stocks possess a relationship between price and news item? Or can we just try to find the subset of stocks that do possess this relationship and then try to predict price movements?  
+
+
+
+
+```{r, warning=FALSE}
+
+ticker <- "PFE"
+
+run_machlearn(ticker)
+
+
+ticker <- "MRK"
+
+run_machlearn(ticker)
+
+ticker <- "BA"
+
+run_machlearn(ticker)
+
+ticker <- "XOM"
+
+run_machlearn(ticker)
+
+
+```
+
